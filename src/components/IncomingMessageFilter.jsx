@@ -10,6 +10,7 @@ import MenuItem from "material-ui/MenuItem";
 import theme from "../styles/theme";
 import { dataSourceItem } from "./utils";
 import SelectedCampaigns from "./SelectedCampaigns";
+import TagsSelector from "./TagsSelector";
 
 import { StyleSheet, css } from "aphrodite";
 
@@ -72,7 +73,8 @@ class IncomingMessageFilter extends Component {
     super(props);
 
     this.state = {
-      selectedCampaigns: []
+      selectedCampaigns: [],
+      tagsFilter: this.props.tagsFilter
     };
   }
 
@@ -130,6 +132,11 @@ class IncomingMessageFilter extends Component {
     }
   };
 
+  onTagsFilterChanged = tagsFilter => {
+    this.setState({ tagsFilter });
+    this.props.onTagsFilterChanged(tagsFilter);
+  };
+
   applySelectedCampaigns = selectedCampaigns => {
     this.setState({
       selectedCampaigns,
@@ -174,7 +181,6 @@ class IncomingMessageFilter extends Component {
     selectedCampaigns.map(campaign => parseInt(campaign.key, 10));
 
   campaignsNotAlreadySelected = campaign => {
-    console.log(campaign);
     return !this.selectedCampaignIds(this.state.selectedCampaigns).includes(
       parseInt(campaign.id, 10)
     );
@@ -311,11 +317,20 @@ class IncomingMessageFilter extends Component {
                 onNewRequest={this.onTexterSelected}
               />
             </div>
-            <SelectedCampaigns
-              campaigns={this.state.selectedCampaigns}
-              onDeleteRequested={this.handleCampaignRemoved}
-              onClear={this.handleClearCampaigns}
-            />
+            <div>
+              {window.EXPERIMENTAL_TAGS === true && (
+                <TagsSelector
+                  onChange={this.onTagsFilterChanged}
+                  tagsFilter={this.state.tagsFilter}
+                  tags={this.props.tags}
+                />
+              )}
+              <SelectedCampaigns
+                campaigns={this.state.selectedCampaigns}
+                onDeleteRequested={this.handleCampaignRemoved}
+                onClear={this.handleClearCampaigns}
+              />
+            </div>
           </div>
         </CardText>
       </Card>
@@ -339,7 +354,10 @@ IncomingMessageFilter.propTypes = {
   onMessageFilterChanged: type.func.isRequired,
   assignmentsFilter: type.shape({
     texterId: type.number
-  }).isRequired
+  }).isRequired,
+  onTagsFilterChanged: type.func.isRequired,
+  tags: type.arrayOf(type.object).isRequired,
+  tagsFilter: type.object.isRequired
 };
 
 export default IncomingMessageFilter;

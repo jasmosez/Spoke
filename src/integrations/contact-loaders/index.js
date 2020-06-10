@@ -17,7 +17,7 @@ function getIngestMethods() {
       const c = require(`./${name}/index.js`);
       ingestMethods[name] = c;
     } catch (err) {
-      console.error("CONTACT_LOADERS failed to load ingestMethod", name);
+      console.error("CONTACT_LOADERS failed to load ingestMethod", name, err);
     }
   });
   return ingestMethods;
@@ -34,11 +34,11 @@ async function getSetCacheableResult(cacheKey, fallbackFunc) {
   }
   const slowRes = await fallbackFunc();
   if (r.redis && slowRes && slowRes.expiresSeconds) {
-    await r.redis.setAsync(
-      cacheKey,
-      JSON.stringify(slowRes),
-      slowRes.expiresSeconds
-    );
+    await r.redis
+      .multi()
+      .set(cacheKey, JSON.stringify(slowRes))
+      .expire(cacheKey, slowRes.expiresSeconds)
+      .execAsync();
   }
   return slowRes;
 }
@@ -75,10 +75,15 @@ export async function getIngestMethod(name, organization, user) {
 }
 
 export async function getAvailableIngestMethods(organization, user) {
+  const enabledIngestMethods = (
+    getConfig("CONTACT_LOADERS", organization) ||
+    "csv-upload,test-fakedata,datawarehouse"
+  ).split(",");
+
   const ingestMethods = await Promise.all(
-    Object.keys(CONFIGURED_INGEST_METHODS).map(name =>
-      getIngestMethod(name, organization, user)
-    )
+    enabledIngestMethods
+      .filter(name => name in CONFIGURED_INGEST_METHODS)
+      .map(name => getIngestMethod(name, organization, user))
   );
   return ingestMethods.filter(x => x);
 }
@@ -87,16 +92,17 @@ export async function getMethodChoiceData(
   ingestMethod,
   organization,
   campaign,
-  user,
-  loaders
+  user
 ) {
   const cacheFunc =
     ingestMethod.clientChoiceDataCacheKey || (org => `${org.id}`);
   const cacheKey = choiceDataCacheKey(
     ingestMethod.name,
-    cacheFunc(organization, campaign, user, loaders)
+    cacheFunc(organization, campaign, user)
   );
-  return (await getSetCacheableResult(cacheKey, async () =>
-    ingestMethod.getClientChoiceData(organization, campaign, user, loaders)
-  )).data;
+  return (
+    await getSetCacheableResult(cacheKey, async () =>
+      ingestMethod.getClientChoiceData(organization, campaign, user)
+    )
+  ).data;
 }

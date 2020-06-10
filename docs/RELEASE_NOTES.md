@@ -1,4 +1,77 @@
 # Release Notes
+## v6.0
+_May 2020:_ Version 6.0
+**Note:** This is a major release and therefore requires a schema change. See the deploy steps section for details. Anything marked as *experimental* has not yet been tested on a production texting campaign.
+We're marking this as a major version update: 6.0 because there are several backwards-incompatible changes that we think you will love:
+
+- *Experimental* Phone number inventory management -- Adds functionality to buy Twilio phone numbers directly through the Admin interface. Organizations using their own Messaging Service, i.e. those that have TWILIO_MESSAGE_SERVICE set in organization features rather than through the global env var, can add the numbers directly to their Messaging Service and use them for texting. Additionally, phone numbers purchased through Spoke can be configured to use a custom voice response by setting the TWILIO_VOICE_URL setting. A typical use case would be to use TwiML Bins to re-route calls or to play a custom voicemails. To configure:
+  - Set EXPERIMENTAL_PHONE_INVENTORY to enable the feature
+  - Set TWILIO_VOICE_URL for a custom voice response
+- *Experimental* Per-campaign Twilio Messaging Services -- This feature lays the foundation for scaling Spoke on Twilio by allowing campaigns to use their own Messaging Services. When enabled, the campaign edit screen will allow admins to either supply a Messaging Service for the campaign to use or to have Spoke create one for them. Note that numbers will have to be added to the Messaging Service manually. This feature will be integrated with the phone number inventory in a future release. To configure:
+  - Set EXPERIMENTAL_TWILIO_PER_CAMPAIGN_MESSAGING_SERVICE to enable
+  - Set TWILIO_BASE_CALLBACK_URL to configure webhooks for Messaging Services created by Spoke. Required if this feature is enabled.
+- New Texting UI -- in version 5.6 it was enableable with EXPERIMENTAL_TEXTERUI ahead of time. It is now the default! For this version, we allow you to preserve the old texter UI by setting the environment variable DEPRECATED_TEXTERUI=GONE_SOON. Also note that with the new UI we have removed user-created Canned Responses -- there's consensus that it causes more problems than it helps. We've also long had the Super Volunteer role which most campaigns use for a group of texters that can update canned responses when needed.
+  - As part of this Texter UI, you can create [shortcut buttons](./REFERENCE-shortcut-rules.md) that will surface some of your question responses and canned responses as a row of buttons outside of a menu to speed up a texter's response flow. [Check out the docs to learn more!](./REFERENCE-shortcut-rules.md)
+- Action Handler developers: Through the great work of @lperson for improved VAN support, our action handler api used to return a true/false value for the available() call -- it should now return an object with two keys: { result: <boolean on available>, expiresSeconds: <how long to cache the result, 0 by default>}
+There are several schema changes -- only adding fields, so migration should be easy/fast. However, if you have SUPPRESS_MIGRATIONS enabled, then you will need to manually migrate the database ( Heroku, AWS Lambda )
+
+In addition to those changes, we've improved the Admin People page (@lperson ) and made some tweaks to the Campaign Edit page (@matteosb , @higgyCodes ), and the Texter Todo list (@larkinds ).
+
+Deploy Steps:
+
+**Instructions for migrating you database**
+
+1. Make sure SUPPRESS_MIGRATIONS="" (not 0!) in your environment
+2. If you're using AWS Lambda, check out the [deploy instructions here](DEPLOYING_AWS_LAMBDA.md#migrating-the-database)
+
+Thanks to all the contributors part of this release including:
+[hiemanshu](https://github.com/hiemanshu),
+[higgyCodes](https://github.com/higgyCodes),
+[JeremyParker](https://github.com/JeremyParker),
+[larkinds](https://github.com/larkinds),
+[lperson](https://github.com/lperson),
+[matteosb](https://github.com/matteosb),
+[schuyler1d](https://github.com/schuyler1d)
+
+## v5.5
+_May 2020:_ Version 5.5
+- Campaign List Admin changes (@lperson, @schuyler1d)
+- Twilio Auth per organization (@jeffm2001 ) -- Now if you enable TWILIO_MULTI_ORG environment variable, each organization can use a different Twilio account that they can setup in the Settings Admin tab. This also allows per-organization message services. There is more work coming to allow [message services per-campaign](https://github.com/MoveOnOrg/Spoke/issues/1495) and [in-app phone number management](https://github.com/MoveOnOrg/Spoke/issues/1518)
+- This release has several developing features -- you might say it's a 'preview' release of things to come. You can turn on these features with environment variables
+  - EXPERIMENTAL_TEXTERUI: After some amazing design work by @arena with multiple iterations and two user testing rounds by @ibrand, We are planning to make this the DEFAULT texter interface in the next Spoke release. We know that this has some challenges for current deployments -- updating documentation and training materials for texters. Just like you switch ON this new version in this release, for one release (and no more), we intend that you will be able to set a different environment variable in order to keep the old interface. That should allow you to control the switch to the new interface gracefully.
+    - We put a lot of work into this interface to accomodate upcoming features, radically improve the mobile (and generally cross-screen support) and address some issues that regularly come up for texters.
+    - Please send your experience reports in testing
+    - More context can be seen at [RFC: New Texter UI](https://github.com/MoveOnOrg/Spoke/pull/1522)
+  - EXPERIMENTAL_TAGS: Tagging users instead of just saving question responses is a very common request, and we have a great volunteer team developing these features. This first step is creating an admin interface to create the tags. There will be more to come, but you can preview and test this development by enabling the environment variable. Thanks to @aschneit and @filafb!
+
+(a cypress stub was also merged into main for e2e tests recently)
+
+Thanks to all the contributors part of this release including:
+[aschneit](https://github.com/aschneit),
+[filafb](https://github.com/filafb),
+[jasmosez](https://github.com/jasmosez),
+[lperson](https://github.com/lperson),
+[schuyler1d](https://github.com/schuyler1d),
+[tmc](https://github.com/tmc)
+
+## v5.4
+_April 2020:_ Version 5.4
+This release includes the following improvements:
+
+- *Experimental* A new contact loader for loading contacts in straight from NGP VAN (not yet tested on a production campaign)
+- Scaling improvements
+- Allow contact loaders to be toggled on a per-organization level
+- Improvements to the contact loaders framework
+- Upgrades node version to 10.x and twilio
+- Account view has a more streamlined UI
+- Various bug fixes
+
+
+Thanks to all the contributors part of this release including:
+[aschneit](https://github.com/aschneit),
+[lperson](https://github.com/lperson),
+[schuyler1d](https://github.com/schuyler1d),
+[ibrand](https://github.com/ibrand),
 
 ## v5.3
 _March 2020:_ Version 5.3

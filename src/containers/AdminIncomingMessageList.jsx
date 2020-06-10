@@ -7,12 +7,10 @@ import IncomingMessageFilter, {
   ALL_CAMPAIGNS
 } from "../components/IncomingMessageFilter";
 import IncomingMessageList from "../components/IncomingMessageList";
-import LoadingIndicator from "../components/LoadingIndicator";
 import PaginatedCampaignsRetriever from "./PaginatedCampaignsRetriever";
 import gql from "graphql-tag";
 import loadData from "./hoc/load-data";
 import { withRouter } from "react-router";
-import wrapMutations from "./hoc/wrap-mutations";
 import PaginatedUsersRetriever from "./PaginatedUsersRetriever";
 
 function getCampaignsFilterForCampaignArchiveStatus(
@@ -58,6 +56,20 @@ function getContactsFilterForConversationOptOutStatus(
 }
 
 export class AdminIncomingMessageList extends Component {
+  static tagsFilterStateFromTagsFilter = tagsFilter => {
+    let newTagsFilter = null;
+    if (tagsFilter.anyTag) {
+      newTagsFilter = ["*"];
+    } else if (tagsFilter.noTag) {
+      newTagsFilter = [];
+    } else if (!tagsFilter.ignoreTags) {
+      newTagsFilter = Object.values(tagsFilter.selectedTags).map(
+        tagFilter => tagFilter.id
+      );
+    }
+    return newTagsFilter;
+  };
+
   constructor(props) {
     super(props);
 
@@ -77,11 +89,13 @@ export class AdminIncomingMessageList extends Component {
       includeActiveCampaigns: true,
       includeNotOptedOutConversations: true,
       includeOptedOutConversations: false,
-      clearSelectedMessages: false
+      clearSelectedMessages: false,
+      tagsFilter: { ignoreTags: true }
     };
   }
 
   shouldComponentUpdate = (dummy, nextState) => {
+    console.log("shouldComponentUpdate", nextState.needsRender);
     if (
       !nextState.needsRender &&
       _.isEqual(this.state.contactsFilter, nextState.contactsFilter) &&
@@ -90,6 +104,7 @@ export class AdminIncomingMessageList extends Component {
     ) {
       return false;
     }
+    console.log("shouldComponentUpdate updating");
     return true;
   };
 
@@ -199,6 +214,7 @@ export class AdminIncomingMessageList extends Component {
   };
 
   handleCampaignTextersReceived = async campaignTexters => {
+    console.log("handleCampaignTextersReceived", campaignTexters.length);
     this.setState({ campaignTexters, needsRender: true });
   };
 
@@ -287,6 +303,24 @@ export class AdminIncomingMessageList extends Component {
     });
   };
 
+  handleTagsFilterChanged = tagsFilter => {
+    const newTagsFilter = AdminIncomingMessageList.tagsFilterStateFromTagsFilter(
+      tagsFilter
+    );
+
+    const contactsFilter = {
+      ...this.state.contactsFilter,
+      tags: newTagsFilter || undefined
+    };
+
+    this.setState({
+      clearSelectedMessages: true,
+      contactsFilter,
+      tagsFilter,
+      needsRender: true
+    });
+  };
+
   conversationCountChanged = conversationCount => {
     this.setState({
       conversationCount
@@ -309,103 +343,81 @@ export class AdminIncomingMessageList extends Component {
     return (
       <div>
         <h3> Message Review </h3>
-        {this.props.organization && this.props.organization.loading ? (
-          <LoadingIndicator />
-        ) : (
-          <div>
-            <PaginatedUsersRetriever
-              organizationId={this.props.params.organizationId}
-              onUsersReceived={this.handleReassignmentTextersReceived}
-              pageSize={1000}
-            />
-            <PaginatedUsersRetriever
-              organizationId={this.props.params.organizationId}
-              onUsersReceived={this.handleCampaignTextersReceived}
-              pageSize={1000}
-              campaignsFilter={this.state.campaignsFilter}
-            />
-            <PaginatedCampaignsRetriever
-              organizationId={this.props.params.organizationId}
-              campaignsFilter={_.pick(this.state.campaignsFilter, "isArchived")}
-              onCampaignsReceived={this.handleCampaignsReceived}
-              pageSize={1000}
-            />
-            <IncomingMessageFilter
-              campaigns={this.state.campaigns}
-              texters={this.state.campaignTexters}
-              onCampaignChanged={this.handleCampaignChanged}
-              onTexterChanged={this.handleTexterChanged}
-              onMessageFilterChanged={this.handleMessageFilterChange}
-              assignmentsFilter={this.state.assignmentsFilter}
-              onActiveCampaignsToggled={this.handleActiveCampaignsToggled}
-              onArchivedCampaignsToggled={this.handleArchivedCampaignsToggled}
-              includeActiveCampaigns={this.state.includeActiveCampaigns}
-              includeArchivedCampaigns={this.state.includeArchivedCampaigns}
-              onNotOptedOutConversationsToggled={
-                this.handleNotOptedOutConversationsToggled
-              }
-              onOptedOutConversationsToggled={
-                this.handleOptedOutConversationsToggled
-              }
-              includeNotOptedOutConversations={
-                this.state.includeNotOptedOutConversations
-              }
-              includeOptedOutConversations={
-                this.state.includeOptedOutConversations
-              }
-            />
-            <br />
-            <IncomingMessageActions
-              people={this.state.reassignmentTexters}
-              onReassignRequested={this.handleReassignRequested}
-              onReassignAllMatchingRequested={
-                this.handleReassignAllMatchingRequested
-              }
-              conversationCount={this.state.conversationCount}
-            />
-            <br />
-            <IncomingMessageList
-              organizationId={this.props.params.organizationId}
-              cursor={cursor}
-              contactsFilter={this.state.contactsFilter}
-              campaignsFilter={this.state.campaignsFilter}
-              assignmentsFilter={this.state.assignmentsFilter}
-              utc={this.state.utc}
-              onPageChanged={this.handlePageChange}
-              onPageSizeChanged={this.handlePageSizeChange}
-              onConversationSelected={this.handleRowSelection}
-              onConversationCountChanged={this.conversationCountChanged}
-              clearSelectedMessages={this.state.clearSelectedMessages}
-              onForceRefresh={this.handleForceRefresh}
-            />
-          </div>
-        )}
+        <div>
+          <PaginatedUsersRetriever
+            organizationId={this.props.params.organizationId}
+            onUsersReceived={this.handleReassignmentTextersReceived}
+            pageSize={1000}
+          />
+          <PaginatedUsersRetriever
+            organizationId={this.props.params.organizationId}
+            onUsersReceived={this.handleCampaignTextersReceived}
+            pageSize={1000}
+            campaignsFilter={this.state.campaignsFilter}
+          />
+          <PaginatedCampaignsRetriever
+            organizationId={this.props.params.organizationId}
+            campaignsFilter={_.pick(this.state.campaignsFilter, "isArchived")}
+            onCampaignsReceived={this.handleCampaignsReceived}
+            pageSize={1000}
+          />
+          <IncomingMessageFilter
+            campaigns={this.state.campaigns}
+            texters={this.state.campaignTexters}
+            onCampaignChanged={this.handleCampaignChanged}
+            onTexterChanged={this.handleTexterChanged}
+            onMessageFilterChanged={this.handleMessageFilterChange}
+            assignmentsFilter={this.state.assignmentsFilter}
+            onActiveCampaignsToggled={this.handleActiveCampaignsToggled}
+            onArchivedCampaignsToggled={this.handleArchivedCampaignsToggled}
+            includeActiveCampaigns={this.state.includeActiveCampaigns}
+            includeArchivedCampaigns={this.state.includeArchivedCampaigns}
+            onNotOptedOutConversationsToggled={
+              this.handleNotOptedOutConversationsToggled
+            }
+            onOptedOutConversationsToggled={
+              this.handleOptedOutConversationsToggled
+            }
+            includeNotOptedOutConversations={
+              this.state.includeNotOptedOutConversations
+            }
+            includeOptedOutConversations={
+              this.state.includeOptedOutConversations
+            }
+            onTagsFilterChanged={this.handleTagsFilterChanged}
+            tagsFilter={this.state.tagsFilter}
+            tags={this.props.organization.organization.tags}
+          />
+          <br />
+          <IncomingMessageActions
+            people={this.state.reassignmentTexters}
+            onReassignRequested={this.handleReassignRequested}
+            onReassignAllMatchingRequested={
+              this.handleReassignAllMatchingRequested
+            }
+            conversationCount={this.state.conversationCount}
+          />
+          <br />
+          <IncomingMessageList
+            organizationId={this.props.params.organizationId}
+            cursor={cursor}
+            contactsFilter={this.state.contactsFilter}
+            campaignsFilter={this.state.campaignsFilter}
+            assignmentsFilter={this.state.assignmentsFilter}
+            utc={this.state.utc}
+            onPageChanged={this.handlePageChange}
+            onPageSizeChanged={this.handlePageSizeChange}
+            onConversationSelected={this.handleRowSelection}
+            onConversationCountChanged={this.conversationCountChanged}
+            clearSelectedMessages={this.state.clearSelectedMessages}
+            onForceRefresh={this.handleForceRefresh}
+            tags={this.props.organization.organization.tags}
+          />
+        </div>
       </div>
     );
   }
 }
-
-// TODO(lmp) don't need mapQueriesToProps
-const mapQueriesToProps = ({ ownProps }) => ({
-  organization: {
-    query: gql`
-      query Q($organizationId: String!) {
-        organization(id: $organizationId) {
-          id
-          people {
-            id
-            displayName
-            roles(organizationId: $organizationId)
-          }
-        }
-      }
-    `,
-    variables: {
-      organizationId: ownProps.params.organizationId
-    },
-    forceFetch: true
-  }
-});
 
 export const bulkReassignCampaignContactsMutation = gql`
   mutation bulkReassignCampaignContacts(
@@ -445,8 +457,40 @@ export const reassignCampaignContactsMutation = gql`
   }
 `;
 
-const mapMutationsToProps = () => ({
-  reassignCampaignContacts: (
+AdminIncomingMessageList.propTypes = {
+  conversations: PropTypes.object,
+  mutations: PropTypes.object,
+  params: PropTypes.object,
+  organization: PropTypes.object,
+  tags: PropTypes.object
+};
+
+const queries = {
+  organization: {
+    query: gql`
+      query getOrganization($id: String!) {
+        organization(id: $id) {
+          id
+          tags {
+            id
+            name
+          }
+        }
+      }
+    `,
+    options: ownProps => {
+      return {
+        variables: {
+          id: ownProps.params.organizationId
+        },
+        fetchPolicy: "network-only"
+      };
+    }
+  }
+};
+
+const mutations = {
+  reassignCampaignContacts: ownProps => (
     organizationId,
     campaignIdsContactIds,
     newTexterUserId
@@ -454,7 +498,7 @@ const mapMutationsToProps = () => ({
     mutation: reassignCampaignContactsMutation,
     variables: { organizationId, campaignIdsContactIds, newTexterUserId }
   }),
-  bulkReassignCampaignContacts: (
+  bulkReassignCampaignContacts: ownProps => (
     organizationId,
     campaignsFilter,
     assignmentsFilter,
@@ -470,16 +514,8 @@ const mapMutationsToProps = () => ({
       newTexterUserId
     }
   })
-});
-
-AdminIncomingMessageList.propTypes = {
-  conversations: PropTypes.object,
-  mutations: PropTypes.object,
-  params: PropTypes.object,
-  organization: PropTypes.object
 };
 
-export default loadData(withRouter(wrapMutations(AdminIncomingMessageList)), {
-  mapQueriesToProps,
-  mapMutationsToProps
-});
+export const operations = { mutations, queries };
+
+export default loadData(operations)(withRouter(AdminIncomingMessageList));

@@ -20,12 +20,11 @@ import { r } from "../../../src/server/models/";
 import {
   setupTest,
   cleanupTest,
-  runComponentGql,
   createUser,
   createInvite,
   createOrganization,
   createCampaign,
-  saveCampaign
+  sleep
 } from "../../test_helpers";
 
 // client-testing libs
@@ -35,10 +34,6 @@ import MuiThemeProvider from "material-ui/styles/MuiThemeProvider";
 import { StyleSheetTestUtils } from "aphrodite";
 import CampaignContactsChoiceForm from "../../../src/components/CampaignContactsChoiceForm";
 import { icons } from "../../../src/components/CampaignContactsChoiceForm";
-
-function sleep(ms) {
-  return new Promise(resolve => setTimeout(resolve, ms));
-}
 
 const contacts = [
   {
@@ -178,7 +173,7 @@ describe("ingest-contact-loader method: csv-upload frontend", async () => {
     changeData = null;
     component.handleUploadSuccess({ stats: 1 }, contacts, ["custom1"]);
     // wait for it to process.....
-    await sleep(5);
+    await sleep(15);
     const unzippedData = await unzipPayload({ payload: changeData });
     expect(unzippedData.contacts).toEqual(contacts);
   });

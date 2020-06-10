@@ -1,56 +1,19 @@
 import gql from "graphql-tag";
 
-import {
-  schema as userSchema,
-  resolvers as userResolvers,
-  buildUserOrganizationQuery
-} from "./user";
-import {
-  schema as conversationSchema,
-  getConversations,
-  resolvers as conversationsResolver
-} from "./conversations";
-import {
-  schema as organizationSchema,
-  resolvers as organizationResolvers
-} from "./organization";
-import {
-  schema as campaignSchema,
-  resolvers as campaignResolvers
-} from "./campaign";
-import {
-  schema as assignmentSchema,
-  resolvers as assignmentResolvers
-} from "./assignment";
-import {
-  schema as interactionStepSchema,
-  resolvers as interactionStepResolvers
-} from "./interaction-step";
-import {
-  schema as questionSchema,
-  resolvers as questionResolvers
-} from "./question";
-import {
-  schema as questionResponseSchema,
-  resolvers as questionResponseResolvers
-} from "./question-response";
-import {
-  schema as optOutSchema,
-  resolvers as optOutResolvers
-} from "./opt-out";
-import {
-  schema as messageSchema,
-  resolvers as messageResolvers
-} from "./message";
-import {
-  schema as campaignContactSchema,
-  resolvers as campaignContactResolvers
-} from "./campaign-contact";
-import {
-  schema as cannedResponseSchema,
-  resolvers as cannedResponseResolvers
-} from "./canned-response";
-import { schema as inviteSchema, resolvers as inviteResolvers } from "./invite";
+import { schema as userSchema } from "./user";
+import { schema as conversationSchema } from "./conversations";
+import { schema as organizationSchema } from "./organization";
+import { schema as campaignSchema } from "./campaign";
+import { schema as assignmentSchema } from "./assignment";
+import { schema as interactionStepSchema } from "./interaction-step";
+import { schema as questionSchema } from "./question";
+import { schema as questionResponseSchema } from "./question-response";
+import { schema as optOutSchema } from "./opt-out";
+import { schema as messageSchema } from "./message";
+import { schema as campaignContactSchema } from "./campaign-contact";
+import { schema as cannedResponseSchema } from "./canned-response";
+import { schema as inviteSchema } from "./invite";
+import { schema as tagSchema } from "./tag";
 
 const rootSchema = gql`
   input CampaignContactInput {
@@ -86,6 +49,7 @@ const rootSchema = gql`
     script: String
     answerOption: String
     answerActions: String
+    answerActionsData: String
     parentInteractionId: String
     isDeleted: Boolean
     interactionSteps: [InteractionStepInput]
@@ -106,17 +70,26 @@ const rootSchema = gql`
     primaryColor: String
     introHtml: String
     useDynamicAssignment: Boolean
+    batchSize: Int
     ingestMethod: String
     contactData: String
     organizationId: String
     texters: [TexterInput]
     interactionSteps: InteractionStepInput
     cannedResponses: [CannedResponseInput]
+    useOwnMessagingService: Boolean
+    phoneNumbers: [String]
+    messageserviceSid: String
     overrideOrganizationTextingHours: Boolean
     textingHoursEnforced: Boolean
     textingHoursStart: Int
     textingHoursEnd: Int
+    texterUIConfig: TexterUIConfigInput
     timezone: String
+  }
+
+  input OrganizationInput {
+    texterUIConfig: TexterUIConfigInput
   }
 
   input MessageInput {
@@ -172,10 +145,14 @@ const rootSchema = gql`
     assignmentId: String!
   }
 
-  type Action {
-    name: String
-    display_name: String
-    instructions: String
+  input TagInput {
+    id: String
+    name: String!
+    group: String
+    value: String
+    description: String
+    isDeleted: Boolean
+    organizationId: String
   }
 
   type FoundContact {
@@ -201,6 +178,21 @@ const rootSchema = gql`
     OLDEST
   }
 
+  enum FilterPeopleBy {
+    FIRST_NAME
+    LAST_NAME
+    EMAIL
+    ANY
+  }
+
+  enum SortCampaignsBy {
+    DUE_DATE_ASC
+    DUE_DATE_DESC
+    ID_ASC
+    ID_DESC
+    TITLE
+  }
+
   type RootQuery {
     currentUser: User
     organization(id: String!, utc: String): Organization
@@ -208,7 +200,6 @@ const rootSchema = gql`
     inviteByHash(hash: String!): [Invite]
     assignment(id: String!): Assignment
     organizations: [Organization]
-    availableActions(organizationId: String!): [Action]
     conversations(
       cursor: OffsetLimitCursor!
       organizationId: String!
@@ -221,6 +212,7 @@ const rootSchema = gql`
       organizationId: String!
       cursor: OffsetLimitCursor
       campaignsFilter: CampaignsFilter
+      sortBy: SortCampaignsBy
     ): CampaignsReturn
     people(
       organizationId: String!
@@ -228,13 +220,20 @@ const rootSchema = gql`
       campaignsFilter: CampaignsFilter
       role: String
       sortBy: SortPeopleBy
+      filterString: String
+      filterBy: FilterPeopleBy
     ): UsersReturn
+    user(organizationId: ID!, userId: ID!): User
   }
 
   type RootMutation {
     createInvite(invite: InviteInput!): Invite
     createCampaign(campaign: CampaignInput!): Campaign
     editCampaign(id: String!, campaign: CampaignInput!): Campaign
+    editOrganization(
+      id: String!
+      organization: OrganizationInput!
+    ): Organization
     deleteJob(campaignId: String!, id: String!): JobRequest
     copyCampaign(id: String!): Campaign
     exportCampaign(id: String!): JobRequest
@@ -246,6 +245,7 @@ const rootSchema = gql`
     ): Organization
     joinOrganization(
       organizationUuid: String!
+      campaignId: String
       queryParams: String
     ): Organization
     editOrganizationRoles(
@@ -270,6 +270,12 @@ const rootSchema = gql`
       organizationId: String!
       optOutMessage: String!
     ): Organization
+    updateTwilioAuth(
+      organizationId: String!
+      twilioAccountSid: String
+      twilioAuthToken: String
+      twilioMessageServiceSid: String
+    ): Organization
     bulkSendMessages(assignmentId: Int!): [CampaignContact]
     sendMessage(
       message: MessageInput!
@@ -287,10 +293,11 @@ const rootSchema = gql`
       interactionStepIds: [String]
       campaignContactId: String!
     ): CampaignContact
+    updateContactTags(tags: [TagInput], campaignContactId: String!): String
     updateQuestionResponses(
       questionResponses: [QuestionResponseInput]
       campaignContactId: String!
-    ): CampaignContact
+    ): String
     startCampaign(id: String!): Campaign
     archiveCampaign(id: String!): Campaign
     archiveCampaigns(ids: [String!]): [Campaign]
@@ -305,11 +312,6 @@ const rootSchema = gql`
       assignmentId: String!
       numberContacts: Int!
     ): FoundContact
-    assignUserToCampaign(
-      organizationUuid: String!
-      campaignId: String!
-      queryParams: String
-    ): Campaign
     userAgreeTerms(userId: String!): User
     reassignCampaignContacts(
       organizationId: String!
@@ -324,6 +326,15 @@ const rootSchema = gql`
       newTexterUserId: String!
     ): [CampaignIdAssignmentId]
     importCampaignScript(campaignId: String!, url: String!): Int
+    createTag(organizationId: String!, tagData: TagInput!): Tag
+    editTag(organizationId: String!, id: String!, tagData: TagInput!): Tag
+    deleteTag(organizationId: String!, id: String!): Tag
+    buyPhoneNumbers(
+      organizationId: ID!
+      areaCode: String!
+      limit: Int!
+      addToOrganizationMessagingService: Boolean
+    ): JobRequest
   }
 
   schema {
@@ -349,5 +360,6 @@ export const schema = [
   questionResponseSchema,
   questionSchema,
   inviteSchema,
-  conversationSchema
+  conversationSchema,
+  tagSchema
 ];
